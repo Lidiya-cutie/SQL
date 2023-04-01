@@ -296,3 +296,112 @@ ORDER BY h.id
 # РАБОТА С ОБЪЕДИНЁННЫМИ ТАБЛИЦАМИ
 
 Напишем запрос, который выведет *id* матчей, в которых команда Arsenal была гостевой.
+```sql
+SELECT 
+    m.id /*столбец id таблицы m*/
+FROM
+    sql.teams t /*таблица teams с алиасом t*/
+    JOIN sql.matches m ON m.away_team_api_id = t.api_id /*оператор соединения таблиц; таблица matches с алиасом m; условие: away_team_api_id таблицы m равен api_id таблицы t*/
+WHERE long_name = 'Arsenal' /*long_name таблицы teams имеет значение Arsenal*/
+```
+Принципиальное отличие фильтрации данных по соединённым таблицам от аналогичного действия по одиночным таблицам заключается в том, что, фильтруя записи одной таблицы, мы также будем фильтровать и записи другой таблицы, поскольку соединённые на уровне запроса таблицы по сути являются единой таблицей.
+
+Например, результат запроса
+```sql
+SELECT 
+	m.id id_1,
+	m.season,
+	t.id id_2,
+	t.long_name
+FROM
+	sql.teams t
+JOIN sql.matches m ON m.away_team_api_id = t.api_id
+```
+можно разделить на две разные части
+
+Одна часть — таблица *matches* с алиасом m, вторая — *teams* с алиасом t, но после соединения они являются одной таблицей.
+
+Таким образом, если вы отфильтруете данные по одной части таблицы, то другая, соединённая, часть пропадёт вместе с ней.
+
+Напишем запрос, который выведет команды с коротким названием *GEN* сезона 2008/2009
+```sql
+SELECT * /*выбор всех полей*/
+FROM    
+    sql.matches m /*таблица matches с алиасом m*/
+    JOIN sql.teams t on t.api_id = m.home_team_api_id /*оператор соединения таблиц; таблица teams с алиасом t; условие: home_team_api_id таблицы m равен api_id таблицы t*/
+WHERE
+    t.short_name = 'GEN' /*столбец short_name таблицы t имеет значение GEN*/
+    AND m.season = '2008/2009' /*столбец season таблицы m имеет значение 2008/2009*/
+```
+## АГРЕГАЦИЯ ДАННЫХ
+Нам и здесь доступны агрегатные функции.
+
+Напишем запрос, который выведет сумму голов по тем матчам, где команда выступала в гостях
+```sql
+SELECT
+    t.long_name, /*столбец long_name таблицы t*/
+    SUM(m.home_team_goals) + SUM(m.away_team_goals) match_goals /*функция суммирования; столбец home_team_goals таблицы m; функция суммирования; столбец away_team_goals таблицы m; новое название столбца*/
+FROM
+    sql.matches m /*таблица matches с алиасом m*/
+    JOIN sql.teams t ON m.away_team_api_id = t.api_id /*оператор соединения таблиц; таблица teams с алиасом t; условие: away_team_api_id таблицы m равен api_id таблицы t*/
+GROUP BY t.id /*группировка по столбцу id таблицы t*/
+```
+Напишем запрос, который выведет общее количество голов по сезонам
+```sql
+SELECT
+    m.season,
+    SUM(m.home_team_goals) + SUM(m.away_team_goals) total_goals 
+FROM
+    sql.matches m
+GROUP BY m.season
+```
+Напишем запрос, который выведет таблицу суммарно забитых голов в матчах по командам и сезонам для команд, у которых суммарное количество голов в сезонах больше 100 
+
+```SQL
+SELECT
+    m.season,
+    t.long_name,
+    SUM(m.home_team_goals) + SUM(m.away_team_goals) total_goals 
+FROM
+    sql.matches m
+    JOIN sql.teams t ON t.api_id = m.home_team_api_id OR t.api_id = m.away_team_api_id
+GROUP BY m.season, t.id
+HAVING SUM(m.home_team_goals) + SUM(m.away_team_goals) > 100
+```
+Напишем запрос, который выведет полное название команды (long_name), количество голов домашней команды (home_goal) и количество голов гостевой команды (away_goal) в матчах, где домашней командой были команды с коротким названием 'GEN'. Отсортируем запрос по id матча в порядке возрастания.
+```SQL
+SELECT
+    t.long_name long_name,
+    m.home_team_goals home_goal,
+    m.away_team_goals away_goal 
+FROM
+    sql.matches m
+    JOIN sql.teams t ON t.api_id = m.home_team_api_id 
+WHERE t.short_name = 'GEN'
+ORDER BY m.id
+```
+Напишем запрос, чтобы вывести id матчей, короткое название домашней команды (home_short), короткое название гостевой команды (away_short) для матчей сезона 2011/2012, в которых участвовала команда с названием Liverpool. Отсортируем по id матча в порядке возрастания.
+```sql
+SELECT
+    m.id id,
+    h.short_name home_short,
+    a.short_name away_short
+FROM
+    sql.matches m
+    JOIN sql.teams h ON m.home_team_api_id = h.api_id
+    JOIN sql.teams a ON m.away_team_api_id = a.api_id
+WHERE season = '2011/2012' AND (h.long_name = 'Liverpool' or a.long_name = 'Liverpool')
+ORDER BY m.id
+```
+Напишем запрос, с помощью которого можно вывести список полных названий команд, сыгравших в гостях 150 и более матчей. Отсортируем список по названию команды.
+
+```sql
+SELECT
+    t.long_name
+FROM
+    sql.matches m
+    JOIN sql.teams t ON m.away_team_api_id = t.api_id
+GROUP BY t.id
+HAVING COUNT(*) >= 150
+ORDER BY t.long_name
+```

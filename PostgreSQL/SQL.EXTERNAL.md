@@ -524,3 +524,75 @@ FROM rnk_books
 WHERE rnk <= 5
 ORDER BY order_month DESC, rnk 
 ```
+Посчитайте процент заказов каждой книги из выборки в месяц от общих заказов книг из топа за все месяцы. Столбцы к выводу — order_month, book_name, cnt, rnk, total_orders_all, total_ratio5_all. Примечание. Долю нужно посчитать в процентах — не забудьте умножить на 100!
+```sql
+WITH rnk_books AS(
+SELECT
+  order_month,
+  book_name,
+  cnt,
+  dense_rank() OVER (
+  PARTITION BY order_month
+  ORDER BY cnt DESC,
+  book_average_rating DESC)
+  rnk
+FROM
+(SELECT
+  EXTRACT(MONTH FROM order_date) order_month,
+  b.book_name,
+  b.book_average_rating,
+  COUNT(o.book_id) cnt
+ FROM other.book_orders o
+    JOIN other.books b ON o.book_id = b.book_id
+ WHERE
+  b.publishing_year >= 2021 - 10
+  AND DATE(order_date) BETWEEN '2019-01-01' AND '2021-01-01'
+ GROUP BY EXTRACT(MONTH FROM order_date), b.book_name, b.book_average_rating)
+  month_books)
+SELECT 
+  rnk_books.*, 
+  SUM(cnt) OVER () total_order_all,
+  cnt * 100 / SUM(cnt) OVER () total_ratio_all
+FROM rnk_books  
+WHERE rnk <= 5
+ORDER BY order_month DESC, rnk 
+```
+Выберите для общих сумм данные, где количество заказов больше пяти.
+```sql
+WITH rnk_books AS(
+SELECT
+  order_month,
+  book_name,
+  cnt,
+  dense_rank() OVER (
+  PARTITION BY order_month
+  ORDER BY cnt DESC,
+  book_average_rating DESC)
+  rnk
+FROM
+(SELECT
+  EXTRACT(MONTH FROM order_date) order_month,
+  b.book_name,
+  b.book_average_rating,
+  COUNT(o.book_id) cnt
+ FROM other.book_orders o
+    JOIN other.books b ON o.book_id = b.book_id
+ WHERE
+  b.publishing_year >= 2021 - 10
+  AND DATE(order_date) BETWEEN '2019-01-01' AND '2021-01-01'
+ GROUP BY EXTRACT(MONTH FROM order_date), b.book_name, b.book_average_rating)
+  month_books)
+SELECT 
+  rnk_books.*, 
+  SUM(cnt) FILTER (
+    WHERE cnt > 5
+) 
+OVER () total_order_all,
+  cnt * 100 / SUM(cnt) FILTER (
+    WHERE cnt > 5
+) 
+OVER () total_ratio_all
+FROM rnk_books  
+WHERE rnk <= 5
+ORDER BY order_month DESC, rnk 
+```
